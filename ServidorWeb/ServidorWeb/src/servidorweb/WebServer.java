@@ -110,7 +110,7 @@ final class HttpRequest implements Runnable {
         } catch (FileNotFoundException e) {
             fileExists = false;
         }
-        // Close streams and socket.
+        
         // Construct the response message.
         String statusLine = null;
         String contentTypeLine = null;
@@ -141,7 +141,8 @@ final class HttpRequest implements Runnable {
         } else {
             os.writeBytes(entityBody);
         }
-
+        
+        // Close streams and socket.
         os.close();
         br.close();
         socket.close();
