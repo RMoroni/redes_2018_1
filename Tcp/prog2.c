@@ -37,7 +37,7 @@ struct pkt {
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 /********************************************************************/
-//coloquei isso aqui para acabar com os Warning
+//coloquei isso aqui para reduzir os Warnings
 void init();
 float jimsrand();
 void generate_next_arrival();
@@ -65,7 +65,7 @@ int cria_checksum(struct pkt packet)
 int bit_alt;
 int A_esperando_ack;
 struct pkt A_ultimo_pacote;
-
+struct pkt B_ultimo_pacote;
 
 /* called from layer 5, passed the data to be sent to other side */
 int A_output(message)
@@ -74,7 +74,7 @@ struct msg message;
     // se A não estiver aguardando um ACK
     if(!A_esperando_ack)
     {
-        bit_alt= !bit_alt; //bit é invertido
+        bit_alt = !bit_alt; //bit é invertido
         struct pkt packet;
         packet.seqnum = bit_alt;
         packet.acknum = 0;
@@ -106,7 +106,7 @@ struct pkt packet;
     //confere se o checksum do pacote recebido está correto
     if(packet.checksum == cria_checksum(packet))
     {
-        //se o pacote recebido for o ACK aguardado por A
+        //ACK que A está esperando
         if(bit_alt == packet.acknum)
         {
             stoptimer(A); //finaliza temporizador
@@ -160,6 +160,10 @@ struct pkt packet;
 /* called when B's timer goes off */
 void B_timerinterrupt()
 {
+    //se esgotou o tempo de envio do B, reenvia o último pacote
+    /*printf("\nSEQ:%d \t\t A  <<<< reenvia de <<<<  B\n", B_ultimo_pacote.seqnum);
+    starttimer(B, TIMER); //reinicia o tempo do A
+    tolayer3(B, B_ultimo_pacote); //reenvia o pacote para a camada 3*/
 }
 
 /* the following routine will be called once (only) before any other */
