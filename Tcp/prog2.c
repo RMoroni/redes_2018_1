@@ -57,7 +57,6 @@ void tolayer5(AorB,datasent);
 //função para criar um checksum
 int cria_checksum(struct pkt packet)
 {
-    int i;
     return packet.seqnum + packet.acknum + packet.payload[0];
 }
 
@@ -80,9 +79,9 @@ struct msg message;
         packet.acknum = 0;
         strcpy(message.data, packet.payload); //copia o conteúdo
         packet.checksum = cria_checksum(packet); //cria um checksum para o pacote
-        printf("\nSEQ: %d \t\t A  >>>> envia para >>>>  B\n", packet.seqnum);
         A_ultimo_pacote = packet; //seta qual o último pacote enviado
         A_esperando_ack = 1; //agora A está esperando um ACK
+        printf("\nSEQ: %d \t\t A  >>>> envia para >>>>  B\n", packet.seqnum);
         starttimer(A, TIMER); //inicia temporizador do A
         tolayer3(A, packet); //envia pacote para camada 3
         return 1;
@@ -148,9 +147,9 @@ struct pkt packet;
     //verifica se o checksum do pacote está correto
     if(packet.checksum == cria_checksum(packet))
     {
-        printf("\nACK: %d \t\t A  <<<< recebe de <<<<  B\n", packet.seqnum);
         ack.checksum = cria_checksum(ack); //cria checksum
         ack.acknum = packet.seqnum; //seta ack
+        printf("\nACK: %d \t\t A  <<<< recebe de <<<<  B\n", packet.seqnum);
         tolayer3(B, ack); //envia para camada 3
     }
     strcpy(message.data, packet.payload); //copia para mensagem
