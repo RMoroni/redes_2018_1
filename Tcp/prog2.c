@@ -2,22 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// cores para o output
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-// lado A e B
-#define A 0
-#define B 1
-
-// tempo entre envios
-#define TIMER 1000.0
-
 /* ******************************************************************
 ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
 This code should be used for PA2, unidirectional or bidirectional
@@ -52,132 +36,136 @@ struct pkt {
 };
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
+/********************************************************************/
+//coloquei isso aqui para acabar com os Warning
+void init();
+float jimsrand();
+void generate_next_arrival();
+void insertevent(p);
+void printevlist();
+void printevlist();
+void stoptimer(AorB);
+void starttimer(AorB,increment);
+void tolayer3(AorB,packet);
+void tolayer5(AorB,datasent);
+/********************************************************************/
 
-int alternate_bit;
-int A_waiting;
-struct pkt A_last_packet_sent;
+#define A 0
+#define B 1
+#define TIMER 1234.0
+
+//função para criar um checksum
+int cria_checksum(struct pkt packet)
+{
+    int i;
+    return packet.seqnum + packet.acknum + packet.payload[0];
+}
+
+
+int bit_alt;
+int A_esperando_ack;
+struct pkt A_ultimo_pacote;
 
 
 /* called from layer 5, passed the data to be sent to other side */
-A_output(message)
+int A_output(message)
 struct msg message;
 {
-    // se A estiver aguardando um ACK
-    if(A_waiting){
-        return -1;
-    } else {
+    // se A não estiver aguardando um ACK
+    if(!A_esperando_ack)
+    {
+        bit_alt= !bit_alt; //bit é invertido
         struct pkt packet;
-
-        alternate_bit = !alternate_bit;
-
-        // encapsula a mensagem em um pkt
-        packet.seqnum = alternate_bit;
+        packet.seqnum = bit_alt;
         packet.acknum = 0;
-        strcpy(message.data, packet.payload);
-        packet.checksum = cria_checksum(packet);
-
-        // aguardando ACK
-        A_waiting = 1;
-        A_last_packet_sent = packet;
-
-        printf(ANSI_COLOR_GREEN "A \t SEQ%d ---> \t B\n" ANSI_COLOR_RESET, packet.seqnum);
-
-        starttimer(A, TIMER);
-        tolayer3(A, packet);
+        strcpy(message.data, packet.payload); //copia o conteúdo
+        packet.checksum = cria_checksum(packet); //cria um checksum para o pacote
+        printf("\nSEQ: %d \t\t A  >>>> envia para >>>>  B\n", packet.seqnum);
+        A_ultimo_pacote = packet; //seta qual o último pacote enviado
+        A_esperando_ack = 1; //agora A está esperando um ACK
+        starttimer(A, TIMER); //inicia temporizador do A
+        tolayer3(A, packet); //envia pacote para camada 3
+        return 1;
     }
-    return 1;
+    else
+    {
+        return -1; //se estiver esperando um ACK, deu ruim
+    }
 }
 
-B_output(message)  /* need be completed only for extra credit */
+void B_output(message)  /* need be completed only for extra credit */
 struct msg message;
 {
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
-A_input(packet)
+void A_input(packet)
 struct pkt packet;
 {
     struct msg message;
-
-    if(packet.checksum == cria_checksum(packet)){
-
-        // se receber o ACK que estava aguardando
-        if(alternate_bit == packet.acknum){
-            stoptimer(A);
-            A_waiting = 0;
+    //confere se o checksum do pacote recebido está correto
+    if(packet.checksum == cria_checksum(packet))
+    {
+        //se o pacote recebido for o ACK aguardado por A
+        if(bit_alt == packet.acknum)
+        {
+            stoptimer(A); //finaliza temporizador
+            A_esperando_ack = 0; //agora A não está mais esperando um ACK
         }
-
-        // desencapsula e envia a mensagem para o layer 5
-        strcpy(message.data, packet.payload);
-        tolayer5(B, message);
+        strcpy(message.data, packet.payload); //copia para message
+        tolayer5(B, message); //envia para camada 5
     }
 }
 
 
 /* called when A's timer goes off */
-A_timerinterrupt()
+void A_timerinterrupt()
 {
-    printf(ANSI_COLOR_RED "A \t SEQ%d ---> \t B\n" ANSI_COLOR_RESET, A_last_packet_sent.seqnum);
-
-    // reenvia o último pacote
-    starttimer(A, TIMER);
-    tolayer3(A, A_last_packet_sent);
+    //se esgotou o tempo de envio do A, reenvia o último pacote
+    printf("\nSEQ:%d \t\t A  >>>> reenvia para >>>>  B\n", A_ultimo_pacote.seqnum);
+    starttimer(A, TIMER); //reinicia o tempo do A
+    tolayer3(A, A_ultimo_pacote); //reenvia o pacote para a camada 3
 }
 
 /* the following routine will be called once (only) before any other */
 /* entity A routines are called. You can use it to do any initialization */
-A_init()
+void A_init()
 {
-    alternate_bit = 1;
-    A_waiting = 0;
+    bit_alt = 1;
+    A_esperando_ack = 0; //por enquanto, A não está aguardando ACK
 }
 
 
 /* Note that with simplex transfer from A-to-B, there is no B_output() */
 
 /* called from layer 3, when a packet arrives for layer 4 at B*/
-B_input(packet)
+void B_input(packet)
 struct pkt packet;
 {
-    struct pkt ack_pkt;
+    struct pkt ack; //será o ack que o B rertonará
     struct msg message;
 
-    if(packet.checksum == cria_checksum(packet)){
-
-        printf(ANSI_COLOR_GREEN "A \t <--- ACK%d \t B\n" ANSI_COLOR_RESET, packet.seqnum);
-
-        // envia um ACK para o lado A
-        ack_pkt.acknum = packet.seqnum;
-        ack_pkt.checksum = cria_checksum(ack_pkt);
-
-        tolayer3(B, ack_pkt);
+    //verifica se o checksum do pacote está correto
+    if(packet.checksum == cria_checksum(packet))
+    {
+        printf("\nACK: %d \t\t A  <<<< recebe de <<<<  B\n", packet.seqnum);
+        ack.checksum = cria_checksum(ack); //cria checksum
+        ack.acknum = packet.seqnum; //seta ack
+        tolayer3(B, ack); //envia para camada 3
     }
-
-    // desencapsula e envia a mensagem para o layer 5
-    strcpy(message.data, packet.payload);
-    tolayer5(B, message);
+    strcpy(message.data, packet.payload); //copia para mensagem
+    tolayer5(B, message); //envia para camada 5
 }
 
 /* called when B's timer goes off */
-B_timerinterrupt()
+void B_timerinterrupt()
 {
 }
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
-B_init()
+void B_init()
 {
-}
-
-cria_checksum(packet)
-struct pkt packet;
-{
-    int i, checksum;
-    checksum = 0;
-    checksum = packet.seqnum + packet.acknum;
-    for(i=0; i<20; i++)
-        checksum += packet.payload[i];
-    return checksum;
 }
 
 
@@ -229,7 +217,7 @@ int   ntolayer3;           /* number sent into layer 3 */
 int   nlost;               /* number lost in media */
 int ncorrupt;              /* number corrupted by media*/
 
-main()
+int main()
 {
     struct event *eventptr;
     struct msg  msg2give;
@@ -307,11 +295,12 @@ main()
 
     terminate:
     printf(" Simulator terminated at time %f\n after sending %d msgs from layer5\n",time,nsim);
+    return 0;
 }
 
 
 
-init()                         /* initialize the simulator */
+void init()                         /* initialize the simulator */
 {
     int i;
     float sum, avg;
@@ -367,7 +356,7 @@ float jimsrand()
 /*  The next set of routines handle the event list   */
 /*****************************************************/
 
-generate_next_arrival()
+void generate_next_arrival()
 {
     double x,log(),ceil();
     struct event *evptr;
@@ -391,7 +380,7 @@ generate_next_arrival()
 }
 
 
-insertevent(p)
+void insertevent(p)
 struct event *p;
 {
     struct event *q,*qold;
@@ -429,7 +418,7 @@ struct event *p;
     }
 }
 
-printevlist()
+void printevlist()
 {
     struct event *q;
     int i;
@@ -445,7 +434,7 @@ printevlist()
 /********************** Student-callable ROUTINES ***********************/
 
 /* called by students routine to cancel a previously-started timer */
-stoptimer(AorB)
+void stoptimer(AorB)
 int AorB;  /* A or B is trying to stop timer */
 {
     struct event *q,*qold;
@@ -475,7 +464,7 @@ int AorB;  /* A or B is trying to stop timer */
 }
 
 
-starttimer(AorB,increment)
+void starttimer(AorB,increment)
 int AorB;  /* A or B is trying to stop timer */
 float increment;
 {
@@ -504,7 +493,7 @@ float increment;
 
 
 /************************** TOLAYER3 ***************/
-tolayer3(AorB,packet)
+void tolayer3(AorB,packet)
 int AorB;  /* A or B is trying to stop timer */
 struct pkt packet;
 {
@@ -577,7 +566,7 @@ struct pkt packet;
     insertevent(evptr);
 }
 
-tolayer5(AorB,datasent)
+void tolayer5(AorB,datasent)
 int AorB;
 char datasent[20];
 {
