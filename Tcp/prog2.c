@@ -72,15 +72,16 @@ struct msg message;
 {
     // se A não estiver aguardando um ACK
     if(!A_esperando_ack)
-    {
-        bit_alt = !bit_alt; //bit é invertido
+    {     
         struct pkt packet;
+		bit_alt = !bit_alt; //bit é invertido
         packet.seqnum = bit_alt;
         packet.acknum = 0;
         strcpy(message.data, packet.payload); //copia o conteúdo
         packet.checksum = cria_checksum(packet); //cria um checksum para o pacote
+
+		A_esperando_ack = 1; //agora A está esperando um ACK
         A_ultimo_pacote = packet; //seta qual o último pacote enviado
-        A_esperando_ack = 1; //agora A está esperando um ACK
         printf("\nSEQ: %d \t\t A  >>>> envia para >>>>  B\n", packet.seqnum);
         starttimer(A, TIMER); //inicia temporizador do A
         tolayer3(A, packet); //envia pacote para camada 3
@@ -147,9 +148,9 @@ struct pkt packet;
     //verifica se o checksum do pacote está correto
     if(packet.checksum == cria_checksum(packet))
     {
+		printf("\nACK: %d \t\t A  <<<< recebe de <<<<  B\n", packet.seqnum);
+		ack.acknum = packet.seqnum; //seta ack
         ack.checksum = cria_checksum(ack); //cria checksum
-        ack.acknum = packet.seqnum; //seta ack
-        printf("\nACK: %d \t\t A  <<<< recebe de <<<<  B\n", packet.seqnum);
         tolayer3(B, ack); //envia para camada 3
     }
     strcpy(message.data, packet.payload); //copia para mensagem
